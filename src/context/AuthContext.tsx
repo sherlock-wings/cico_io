@@ -20,24 +20,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   useEffect(() => {
-    const unsubscribe = authService.onAuthStateChanged(async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          const user = await authService.getUserDocument(firebaseUser.uid);
-          setState({
-            user,
-            isLoading: false,
-            isAuthenticated: true,
-            error: null,
-          });
-        } catch (error) {
-          setState({
-            user: null,
-            isLoading: false,
-            isAuthenticated: false,
-            error: 'Failed to load user data',
-          });
-        }
+    const unsubscribe = authService.onAuthStateChanged(async (user) => {
+      if (user) {
+        setState({
+          user,
+          isLoading: false,
+          isAuthenticated: true,
+          error: null,
+        });
       } else {
         setState({
           user: null,
