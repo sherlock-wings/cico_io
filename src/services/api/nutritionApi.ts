@@ -40,11 +40,22 @@ interface USDAFood {
 
 class NutritionApiService {
   // Search Open Food Facts database
-  async searchOpenFoodFacts(query: string, page: number = 1): Promise<FoodSearchResult> {
+  // The language parameter filters results to products with names in that language
+  // Using 'all' or undefined will return all results without language filtering
+  async searchOpenFoodFacts(query: string, page: number = 1, language?: string): Promise<FoodSearchResult> {
     try {
-      const response = await fetch(
-        `${OPEN_FOOD_FACTS_BASE_URL}/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page=${page}&page_size=20`
-      );
+      // Build URL with optional language filter
+      // The 'lc' parameter tells Open Food Facts to return products with names in that language
+      // The 'cc' (country code) combined with 'lc' gives better localized results
+      let url = `${OPEN_FOOD_FACTS_BASE_URL}/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page=${page}&page_size=20`;
+      
+      if (language && language !== 'all') {
+        // Add language code to filter results
+        // Using tags_contains to ensure product has data in the specified language
+        url += `&lc=${language}&tagtype_0=languages&tag_contains_0=contains&tag_0=${language}`;
+      }
+      
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error('Failed to search Open Food Facts');
@@ -120,10 +131,10 @@ class NutritionApiService {
   }
 
   // Combined search across multiple databases
-  async searchAll(query: string, page: number = 1): Promise<FoodSearchResult> {
+  async searchAll(query: string, page: number = 1, language?: string): Promise<FoodSearchResult> {
     try {
       const [offResults, usdaResults] = await Promise.all([
-        this.searchOpenFoodFacts(query, page),
+        this.searchOpenFoodFacts(query, page, language),
         this.searchUSDA(query, page),
       ]);
 

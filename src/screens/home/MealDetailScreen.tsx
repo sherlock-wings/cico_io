@@ -23,6 +23,10 @@ const MealDetailScreen: React.FC<HomeStackScreenProps<'MealDetail'>> = ({ naviga
     return sum + entry.foodItem.nutrition.calories * entry.servings;
   }, 0);
 
+  const handleEditEntry = (entry: FoodEntry) => {
+    navigation.navigate('EditEntry', { entry, date });
+  };
+
   const handleDeleteEntry = (entry: FoodEntry) => {
     Alert.alert(
       'Delete Entry',
@@ -76,6 +80,7 @@ const MealDetailScreen: React.FC<HomeStackScreenProps<'MealDetail'>> = ({ naviga
         renderItem={({ item }) => (
           <FoodEntryCard
             entry={item}
+            onPress={() => handleEditEntry(item)}
             onDelete={() => handleDeleteEntry(item)}
           />
         )}

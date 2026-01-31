@@ -7,6 +7,7 @@ import FoodSearchScreen from '@/screens/home/FoodSearchScreen';
 import FoodDetailScreen from '@/screens/home/FoodDetailScreen';
 import CustomFoodScreen from '@/screens/home/CustomFoodScreen';
 import MealDetailScreen from '@/screens/home/MealDetailScreen';
+import EditEntryScreen from '@/screens/home/EditEntryScreen';
 import { colors } from '@/constants/theme';
 
 const Stack = createNativeStackNavigator<HomeStackParamList>();
@@ -56,6 +57,11 @@ const HomeNavigator: React.FC = () => {
         options={({ route }) => ({
           title: route.params.mealType.charAt(0).toUpperCase() + route.params.mealType.slice(1),
         })}
+      />
+      <Stack.Screen
+        name="EditEntry"
+        component={EditEntryScreen}
+        options={{ title: 'Edit Entry' }}
       />
     </Stack.Navigator>
   );

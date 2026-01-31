@@ -78,7 +78,7 @@ class FoodService {
   async updateFoodEntry(
     userId: string,
     entryId: string,
-    updates: Partial<Pick<FoodEntry, 'servings' | 'mealType' | 'notes'>>
+    updates: Partial<Pick<FoodEntry, 'servings' | 'mealType' | 'notes' | 'foodItem'>>
   ): Promise<void> {
     const entries = await this.getAllFoodEntries(userId);
     const index = entries.findIndex(e => e.id === entryId);
@@ -146,14 +146,9 @@ class FoodService {
     });
 
     const dailyLog: DailyLog = {
-      id: `log_${userId}_${date}`,
-      userId,
       date,
       entries,
-      totalCalories: totals.calories,
-      totalProtein: totals.protein,
-      totalCarbs: totals.carbohydrates,
-      totalFat: totals.fat,
+      totals,
     };
 
     // Get existing logs and update
@@ -186,6 +181,20 @@ class FoodService {
       const logDate = new Date(log.date);
       return logDate >= start && logDate < end;
     });
+  }
+
+  // Get daily logs for a date range
+  async getDailyLogsRange(userId: string, startDate: string, endDate: string): Promise<DailyLog[]> {
+    const data = await AsyncStorage.getItem(`${STORAGE_KEYS.DAILY_LOGS}_${userId}`);
+    const logs: DailyLog[] = data ? JSON.parse(data) : [];
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    return logs.filter(log => {
+      const logDate = new Date(log.date);
+      return logDate >= start && logDate <= end;
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
   // Add custom food

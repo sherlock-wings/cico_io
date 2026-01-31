@@ -8,7 +8,7 @@ interface AuthContextType extends AuthState {
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (profile: Partial<UserProfile>) => Promise<void>;
-  createLocalUser: (displayName?: string) => Promise<void>;
+  createLocalUser: (displayName?: string, initialProfile?: Partial<UserProfile>) => Promise<void>;
 }
 
 const STORAGE_KEY = '@cico_current_user';
@@ -123,7 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Create a local user without requiring email/password
   // Used for "Start Fresh" flow and after importing data
-  const createLocalUser = useCallback(async (displayName?: string) => {
+  const createLocalUser = useCallback(async (displayName?: string, initialProfile?: Partial<UserProfile>) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     try {
       // Check if there's already user data from an import
@@ -141,7 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      // Create a new local user
+      // Create a new local user with default profile merged with initial data
       const defaultProfile: UserProfile = {
         dailyCalorieGoal: 2000,
         dailyProteinGoal: 50,
@@ -155,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         displayName: displayName || 'User',
         createdAt: new Date(),
         updatedAt: new Date(),
-        profile: defaultProfile,
+        profile: { ...defaultProfile, ...initialProfile },
       };
 
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));

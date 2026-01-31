@@ -19,6 +19,7 @@ interface FoodLogContextType {
   setSelectedDate: (date: string) => void;
   refreshLog: () => Promise<void>;
   addEntry: (food: FoodItem, servings: number, mealType: MealType, date: string) => Promise<void>;
+  updateEntry: (entryId: string, updates: Partial<Pick<FoodEntry, 'servings' | 'mealType' | 'notes' | 'foodItem'>>, date: string) => Promise<void>;
   deleteEntry: (entryId: string, date: string) => Promise<void>;
   addCustomFood: (food: Omit<FoodItem, 'id' | 'isCustom' | 'createdBy'>) => Promise<FoodItem>;
 }
@@ -63,7 +64,7 @@ export const FoodLogProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setDailyLog(log);
 
       // Update recent foods from entries
-      if (log.entries.length > 0) {
+      if (log && log.entries && log.entries.length > 0) {
         const foods = log.entries.map(e => e.foodItem);
         const uniqueFoods = foods.filter((food, index, self) => 
           self.findIndex(f => f.id === food.id) === index
@@ -107,13 +108,13 @@ export const FoodLogProvider: React.FC<{ children: React.ReactNode }> = ({ child
         
         summaries.push({
           date: dateStr,
-          totalCalories: log?.totals.calories || 0,
+          totalCalories: log?.totals?.calories || 0,
           calorieGoal,
-          totalProtein: log?.totals.protein || 0,
-          totalCarbs: log?.totals.carbohydrates || 0,
-          totalFat: log?.totals.fat || 0,
-          mealsLogged: log?.entries.length || 0,
-          isGoalMet: (log?.totals.calories || 0) <= calorieGoal && (log?.totals.calories || 0) > 0,
+          totalProtein: log?.totals?.protein || 0,
+          totalCarbs: log?.totals?.carbohydrates || 0,
+          totalFat: log?.totals?.fat || 0,
+          mealsLogged: log?.entries?.length || 0,
+          isGoalMet: (log?.totals?.calories || 0) <= calorieGoal && (log?.totals?.calories || 0) > 0,
         });
       }
 
@@ -197,6 +198,21 @@ export const FoodLogProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await loadWeeklyData();
   }, [user, selectedDate]);
 
+  const updateEntry = useCallback(async (
+    entryId: string,
+    updates: Partial<Pick<FoodEntry, 'servings' | 'mealType' | 'notes' | 'foodItem'>>,
+    date: string
+  ) => {
+    if (!user) throw new Error('No user logged in');
+
+    await foodService.updateFoodEntry(user.id, entryId, updates);
+    
+    if (date === selectedDate) {
+      await loadDailyLog();
+    }
+    await loadWeeklyData();
+  }, [user, selectedDate]);
+
   const addCustomFood = useCallback(async (
     food: Omit<FoodItem, 'id' | 'isCustom' | 'createdBy'>
   ): Promise<FoodItem> => {
@@ -220,6 +236,7 @@ export const FoodLogProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSelectedDate,
         refreshLog,
         addEntry,
+        updateEntry,
         deleteEntry,
         addCustomFood,
       }}

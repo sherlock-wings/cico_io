@@ -2,7 +2,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps, NavigatorScreenParams } from '@react-navigation/native';
-import { FoodItem, MealType } from './food';
+import { FoodItem, MealType, FoodEntry } from './food';
 
 // Root Stack (contains auth and main app)
 export type RootStackParamList = {
@@ -35,6 +35,7 @@ export type HomeStackParamList = {
   CustomFood: { mealType: MealType; date: string };
   BarcodeScanner: { mealType: MealType; date: string };
   MealDetail: { mealType: MealType; date: string };
+  EditEntry: { entry: FoodEntry; date: string };
 };
 
 // Dashboard Stack

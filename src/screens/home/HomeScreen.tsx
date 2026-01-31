@@ -25,7 +25,7 @@ const HomeScreen: React.FC<HomeStackScreenProps<'Home'>> = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
 
   const calorieGoal = user?.profile.dailyCalorieGoal || 2000;
-  const consumedCalories = dailyLog?.totals.calories || 0;
+  const consumedCalories = dailyLog?.totals?.calories || 0;
   const remainingCalories = calorieGoal - consumedCalories;
 
   const mealTypes: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -104,21 +104,21 @@ const HomeScreen: React.FC<HomeStackScreenProps<'Home'>> = ({ navigation }) => {
         <View style={styles.macrosContainer}>
           <MacroBar
             label="Protein"
-            current={dailyLog?.totals.protein || 0}
+            current={dailyLog?.totals?.protein || 0}
             goal={user?.profile.dailyProteinGoal || 50}
             unit="g"
             color={colors.protein}
           />
           <MacroBar
             label="Carbs"
-            current={dailyLog?.totals.carbohydrates || 0}
+            current={dailyLog?.totals?.carbohydrates || 0}
             goal={user?.profile.dailyCarbsGoal || 250}
             unit="g"
             color={colors.carbs}
           />
           <MacroBar
             label="Fat"
-            current={dailyLog?.totals.fat || 0}
+            current={dailyLog?.totals?.fat || 0}
             goal={user?.profile.dailyFatGoal || 65}
             unit="g"
             color={colors.fat}

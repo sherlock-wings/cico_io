@@ -28,6 +28,7 @@ export type ServingUnit =
   | 'g' 
   | 'ml' 
   | 'oz' 
+  | 'fl oz'  // Fluid ounces (converted to ml for storage)
   | 'cup' 
   | 'tbsp' 
   | 'tsp' 

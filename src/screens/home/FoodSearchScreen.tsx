@@ -12,6 +12,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { HomeStackScreenProps, FoodItem } from '@/types';
 import { nutritionApiService } from '@/services/api';
 import { useFoodLog } from '@/context/FoodLogContext';
+import { useAuth } from '@/context/AuthContext';
 import { FoodSearchItem } from '@/components/FoodSearchItem';
 import { colors, spacing, typography } from '@/constants/theme';
 import { debounce } from '@/utils/helpers';
@@ -19,6 +20,8 @@ import { debounce } from '@/utils/helpers';
 const FoodSearchScreen: React.FC<HomeStackScreenProps<'FoodSearch'>> = ({ navigation, route }) => {
   const { mealType, date } = route.params;
   const { customFoods, recentFoods } = useFoodLog();
+  const { user } = useAuth();
+  const preferredLanguage = user?.profile?.preferredLanguage;
   
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<FoodItem[]>([]);
@@ -42,8 +45,12 @@ const FoodSearchScreen: React.FC<HomeStackScreenProps<'FoodSearch'>> = ({ naviga
           food.name.toLowerCase().includes(searchQuery.toLowerCase())
         );
 
-        // Search external API
-        const apiResults = await nutritionApiService.searchOpenFoodFacts(searchQuery);
+        // Search external API with language filter
+        const apiResults = await nutritionApiService.searchOpenFoodFacts(
+          searchQuery,
+          1,
+          preferredLanguage
+        );
         
         // Combine results with custom foods first
         setResults([...customResults, ...apiResults.items]);
@@ -53,7 +60,7 @@ const FoodSearchScreen: React.FC<HomeStackScreenProps<'FoodSearch'>> = ({ naviga
         setIsLoading(false);
       }
     }, 500),
-    [customFoods]
+    [customFoods, preferredLanguage]
   );
 
   const handleQueryChange = (text: string) => {

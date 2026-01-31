@@ -7,9 +7,10 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AuthStackScreenProps, GoalType, ActivityLevel, UnitSystem } from '@/types';
+import { AuthStackScreenProps, GoalType, ActivityLevel, UnitSystem, FoodSearchLanguage } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { colors, spacing, typography } from '@/constants/theme';
 import {
@@ -17,6 +18,22 @@ import {
   canCalculateCalories,
   CalorieCalculatorResult,
 } from '@/utils/calorieCalculator';
+
+// Language options for food search
+const languageOptions: { value: FoodSearchLanguage; label: string; flag: string }[] = [
+  { value: 'en', label: 'English', flag: '🇺🇸' },
+  { value: 'es', label: 'Español', flag: '🇪🇸' },
+  { value: 'fr', label: 'Français', flag: '🇫🇷' },
+  { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { value: 'it', label: 'Italiano', flag: '🇮🇹' },
+  { value: 'pt', label: 'Português', flag: '🇵🇹' },
+  { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
+  { value: 'pl', label: 'Polski', flag: '🇵🇱' },
+  { value: 'ja', label: '日本語', flag: '🇯🇵' },
+  { value: 'zh', label: '中文', flag: '🇨🇳' },
+  { value: 'ko', label: '한국어', flag: '🇰🇷' },
+  { value: 'all', label: 'All Languages', flag: '🌍' },
+];
 
 // Unit conversion helpers
 const lbToKg = (lb: number) => lb * 0.453592;
@@ -30,7 +47,7 @@ const cmToFtIn = (cm: number) => {
 };
 
 const OnboardingScreen: React.FC<AuthStackScreenProps<'Onboarding'>> = ({ navigation }) => {
-  const { createLocalUser, updateProfile } = useAuth();
+  const { createLocalUser } = useAuth();
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
@@ -39,10 +56,13 @@ const OnboardingScreen: React.FC<AuthStackScreenProps<'Onboarding'>> = ({ naviga
   const [heightFt, setHeightFt] = useState('');
   const [heightIn, setHeightIn] = useState('');
   const [unitSystem, setUnitSystem] = useState<UnitSystem>('imperial');
+  const [preferredLanguage, setPreferredLanguage] = useState<FoodSearchLanguage>('en');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderately_active');
   const [goalType, setGoalType] = useState<GoalType>('maintain_weight');
   const [calorieGoal, setCalorieGoal] = useState('2000');
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
 
   const activityLevels: { value: ActivityLevel; label: string; description: string }[] = [
     { value: 'sedentary', label: 'Sedentary', description: 'Little or no exercise' },
@@ -114,9 +134,6 @@ const OnboardingScreen: React.FC<AuthStackScreenProps<'Onboarding'>> = ({ naviga
 
   const handleComplete = async () => {
     try {
-      // First create the local user
-      await createLocalUser(name || 'User');
-      
       // Convert weight to kg if imperial
       let weightInKg: number | undefined;
       if (weight) {
@@ -134,8 +151,8 @@ const OnboardingScreen: React.FC<AuthStackScreenProps<'Onboarding'>> = ({ naviga
         heightInCm = parseFloat(height);
       }
       
-      // Then update their profile with onboarding data
-      await updateProfile({
+      // Create local user with all profile data in one atomic operation
+      await createLocalUser(name || 'User', {
         age: parseInt(age) || undefined,
         weight: weightInKg,
         height: heightInCm,
@@ -144,6 +161,7 @@ const OnboardingScreen: React.FC<AuthStackScreenProps<'Onboarding'>> = ({ naviga
         goalType,
         dailyCalorieGoal: parseInt(calorieGoal) || 2000,
         unitSystem,
+        preferredLanguage,
       });
       // Navigation to Main will happen automatically via AuthContext
     } catch (error: any) {
@@ -198,6 +216,21 @@ const OnboardingScreen: React.FC<AuthStackScreenProps<'Onboarding'>> = ({ naviga
             <Text style={[styles.unitSubtext, unitSystem === 'metric' && styles.optionTextActive]}>kg, cm</Text>
           </TouchableOpacity>
         </View>
+      </View>
+
+      <View style={styles.inputContainer}>
+        <Text style={styles.label}>Food Search Language</Text>
+        <Text style={styles.labelHint}>Filter food results to show only items in your language</Text>
+        <TouchableOpacity
+          style={styles.languageSelector}
+          onPress={() => setShowLanguageModal(true)}
+        >
+          <Text style={styles.languageSelectorText}>
+            {languageOptions.find(l => l.value === preferredLanguage)?.flag}{' '}
+            {languageOptions.find(l => l.value === preferredLanguage)?.label}
+          </Text>
+          <Text style={styles.languageSelectorArrow}>▼</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.inputContainer}>
@@ -318,7 +351,15 @@ const OnboardingScreen: React.FC<AuthStackScreenProps<'Onboarding'>> = ({ naviga
 
       {calorieRecommendation && (
         <View style={styles.recommendationCard}>
-          <Text style={styles.recommendationTitle}>📊 Personalized Recommendation</Text>
+          <View style={styles.recommendationHeader}>
+            <Text style={styles.recommendationTitle}>📊 Personalized Recommendation</Text>
+            <TouchableOpacity
+              style={styles.infoButton}
+              onPress={() => setShowInfoModal(true)}
+            >
+              <Text style={styles.infoButtonText}>ⓘ</Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.recommendedCalories}>
             {calorieRecommendation.recommendedCalories.toLocaleString()}
           </Text>
@@ -428,6 +469,164 @@ const OnboardingScreen: React.FC<AuthStackScreenProps<'Onboarding'>> = ({ naviga
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Info Modal for Mifflin-St Jeor Equation */}
+      <Modal
+        visible={showInfoModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowInfoModal(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>How We Calculate Your Calories</Text>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setShowInfoModal(false)}
+            >
+              <Text style={styles.modalCloseText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.infoSection}>
+              <Text style={styles.infoSectionTitle}>🔬 The Mifflin-St Jeor Equation</Text>
+              <Text style={styles.infoText}>
+                We use the Mifflin-St Jeor equation, which is considered one of the most accurate formulas for calculating your Basal Metabolic Rate (BMR) — the number of calories your body needs at complete rest.
+              </Text>
+              <Text style={styles.infoText}>
+                This equation was developed in 1990 by MD Mifflin and ST St Jeor, and has been validated by numerous studies as more accurate than older formulas like Harris-Benedict.
+              </Text>
+            </View>
+
+            <View style={styles.infoSection}>
+              <Text style={styles.infoSectionTitle}>📐 The Formula</Text>
+              <View style={styles.formulaBox}>
+                <Text style={styles.formulaLabel}>For Men:</Text>
+                <Text style={styles.formulaText}>BMR = (10 × weight in kg) + (6.25 × height in cm) - (5 × age) + 5</Text>
+              </View>
+              <View style={styles.formulaBox}>
+                <Text style={styles.formulaLabel}>For Women:</Text>
+                <Text style={styles.formulaText}>BMR = (10 × weight in kg) + (6.25 × height in cm) - (5 × age) - 161</Text>
+              </View>
+            </View>
+
+            <View style={styles.infoSection}>
+              <Text style={styles.infoSectionTitle}>🏃 Activity Multiplier (TDEE)</Text>
+              <Text style={styles.infoText}>
+                Your Total Daily Energy Expenditure (TDEE) is your BMR multiplied by an activity factor:
+              </Text>
+              <View style={styles.activityTable}>
+                <View style={styles.activityTableRow}>
+                  <Text style={styles.activityTableLabel}>Sedentary</Text>
+                  <Text style={styles.activityTableValue}>BMR × 1.2</Text>
+                </View>
+                <View style={styles.activityTableRow}>
+                  <Text style={styles.activityTableLabel}>Lightly Active</Text>
+                  <Text style={styles.activityTableValue}>BMR × 1.375</Text>
+                </View>
+                <View style={styles.activityTableRow}>
+                  <Text style={styles.activityTableLabel}>Moderately Active</Text>
+                  <Text style={styles.activityTableValue}>BMR × 1.55</Text>
+                </View>
+                <View style={styles.activityTableRow}>
+                  <Text style={styles.activityTableLabel}>Very Active</Text>
+                  <Text style={styles.activityTableValue}>BMR × 1.725</Text>
+                </View>
+                <View style={styles.activityTableRow}>
+                  <Text style={styles.activityTableLabel}>Extra Active</Text>
+                  <Text style={styles.activityTableValue}>BMR × 1.9</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.infoSection}>
+              <Text style={styles.infoSectionTitle}>🎯 Goal Adjustments</Text>
+              <Text style={styles.infoText}>
+                Based on your goal, we adjust your TDEE:
+              </Text>
+              <View style={styles.goalTable}>
+                <View style={styles.goalTableRow}>
+                  <Text style={styles.goalTableLabel}>Lose Weight</Text>
+                  <Text style={[styles.goalTableValue, styles.deficitText]}>-500 cal/day</Text>
+                </View>
+                <View style={styles.goalTableRow}>
+                  <Text style={styles.goalTableLabel}>Maintain Weight</Text>
+                  <Text style={styles.goalTableValue}>No change</Text>
+                </View>
+                <View style={styles.goalTableRow}>
+                  <Text style={styles.goalTableLabel}>Gain Weight</Text>
+                  <Text style={[styles.goalTableValue, styles.surplusText]}>+400 cal/day</Text>
+                </View>
+              </View>
+              <Text style={styles.infoTextSmall}>
+                A 500 calorie daily deficit results in approximately 0.5 kg (1 lb) of weight loss per week, which is considered a safe and sustainable rate.
+              </Text>
+            </View>
+
+            <View style={styles.infoSection}>
+              <Text style={styles.infoSectionTitle}>⚠️ Important Notes</Text>
+              <Text style={styles.infoText}>
+                • These calculations provide estimates. Individual metabolism varies.{'\n'}
+                • We enforce minimum calorie floors (1,200 for women, 1,500 for men) for safety.{'\n'}
+                • Consult a healthcare provider before starting any diet program.{'\n'}
+                • Adjust your goal based on real-world results after 2-3 weeks.
+              </Text>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Language Selection Modal */}
+      <Modal
+        visible={showLanguageModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowLanguageModal(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select Language</Text>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setShowLanguageModal(false)}
+            >
+              <Text style={styles.modalCloseText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.languageList}>
+            <Text style={styles.languageModalHint}>
+              Food search results will be filtered to show products with names in your selected language.
+            </Text>
+            {languageOptions.map((lang) => (
+              <TouchableOpacity
+                key={lang.value}
+                style={[
+                  styles.languageOption,
+                  preferredLanguage === lang.value && styles.languageOptionActive,
+                ]}
+                onPress={() => {
+                  setPreferredLanguage(lang.value);
+                  setShowLanguageModal(false);
+                }}
+              >
+                <Text style={styles.languageFlag}>{lang.flag}</Text>
+                <Text
+                  style={[
+                    styles.languageLabel,
+                    preferredLanguage === lang.value && styles.languageLabelActive,
+                  ]}
+                >
+                  {lang.label}
+                </Text>
+                {preferredLanguage === lang.value && (
+                  <Text style={styles.languageCheckmark}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -482,6 +681,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.xs,
   },
+  labelHint: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
   input: {
     backgroundColor: colors.surface,
     borderRadius: 12,
@@ -491,6 +695,25 @@ const styles = StyleSheet.create({
     color: colors.text,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  languageSelector: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  languageSelectorText: {
+    fontSize: typography.sizes.md,
+    color: colors.text,
+  },
+  languageSelectorArrow: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary,
   },
   optionRow: {
     flexDirection: 'row',
@@ -781,6 +1004,182 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.lg,
     fontWeight: typography.weights.semibold as any,
+  },
+  // Info button and modal styles
+  recommendationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  infoButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoButtonText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: typography.weights.bold as any,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.bold as any,
+    color: colors.text,
+    flex: 1,
+  },
+  modalCloseButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  modalCloseText: {
+    color: colors.primary,
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.semibold as any,
+  },
+  modalContent: {
+    flex: 1,
+    padding: spacing.lg,
+  },
+  infoSection: {
+    marginBottom: spacing.xl,
+  },
+  infoSectionTitle: {
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.semibold as any,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  infoText: {
+    fontSize: typography.sizes.md,
+    color: colors.textSecondary,
+    lineHeight: 24,
+    marginBottom: spacing.sm,
+  },
+  infoTextSmall: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginTop: spacing.sm,
+    fontStyle: 'italic',
+  },
+  formulaBox: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  formulaLabel: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.semibold as any,
+    color: colors.primary,
+    marginBottom: spacing.xs,
+  },
+  formulaText: {
+    fontSize: typography.sizes.sm,
+    color: colors.text,
+    fontFamily: 'monospace',
+  },
+  activityTable: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+  },
+  activityTableRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+  },
+  activityTableLabel: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary,
+  },
+  activityTableValue: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium as any,
+    color: colors.text,
+  },
+  goalTable: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+  },
+  goalTableRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+  },
+  goalTableLabel: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary,
+  },
+  goalTableValue: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.semibold as any,
+    color: colors.text,
+  },
+  // Language modal styles
+  languageList: {
+    flex: 1,
+    padding: spacing.lg,
+  },
+  languageModalHint: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+    lineHeight: 20,
+  },
+  languageOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: 12,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  languageOptionActive: {
+    backgroundColor: colors.primaryLight || '#E8F5E9',
+    borderColor: colors.primary,
+  },
+  languageFlag: {
+    fontSize: 24,
+    marginRight: spacing.md,
+  },
+  languageLabel: {
+    flex: 1,
+    fontSize: typography.sizes.md,
+    color: colors.text,
+  },
+  languageLabelActive: {
+    fontWeight: typography.weights.semibold as any,
+    color: colors.primary,
+  },
+  languageCheckmark: {
+    fontSize: typography.sizes.lg,
+    color: colors.primary,
+    fontWeight: typography.weights.bold as any,
   },
 });
 

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { HomeStackScreenProps, ServingUnit } from '@/types';
+import { HomeStackScreenProps, MealType, ServingUnit } from '@/types';
 import { useFoodLog } from '@/context/FoodLogContext';
 import { NutritionLabel } from '@/components/NutritionLabel';
 import { colors, spacing, typography } from '@/constants/theme';
@@ -23,37 +23,73 @@ const ML_TO_GRAMS = 1;           // Approximate for most beverages (water densit
 type MeasurementUnit = 'g' | 'oz' | 'ml' | 'fl oz';
 type MeasurementType = 'weight' | 'volume';
 
-const FoodDetailScreen: React.FC<HomeStackScreenProps<'FoodDetail'>> = ({ navigation, route }) => {
-  const { foodItem, mealType, date } = route.params;
-  const { addEntry } = useFoodLog();
+const EditEntryScreen: React.FC<HomeStackScreenProps<'EditEntry'>> = ({ navigation, route }) => {
+  const { entry, date } = route.params;
+  const { updateEntry, deleteEntry } = useFoodLog();
   
   // Detect if food is likely a liquid based on name
-  const isLiquid = /beer|soda|juice|water|milk|coffee|tea|wine|drink|beverage|smoothie|shake|cola|sprite|pepsi|coke|lemonade|energy drink/i.test(foodItem.name);
+  const isLiquid = /beer|soda|juice|water|milk|coffee|tea|wine|drink|beverage|smoothie|shake|cola|sprite|pepsi|coke|lemonade|energy drink/i.test(entry.foodItem.name);
   
-  // Serving size state - amount user is eating
-  const [servingAmount, setServingAmount] = useState(
-    foodItem.servingSize?.toString() || '100'
-  );
-  
-  // Initialize unit based on food type and existing unit
+  // Determine initial unit based on stored unit and food type
   const getInitialUnit = (): MeasurementUnit => {
-    const existingUnit = foodItem.servingUnit;
-    if (existingUnit === 'ml') return 'ml';
+    const existingUnit = entry.foodItem.servingUnit;
+    if (existingUnit === 'ml') return isLiquid ? 'ml' : 'ml';
     if (existingUnit === 'oz' && isLiquid) return 'fl oz';
     if (existingUnit === 'oz') return 'oz';
     if (isLiquid) return 'ml';
     return 'g';
   };
   
-  const [servingUnit, setServingUnit] = useState<MeasurementUnit>(getInitialUnit());
-  const [measurementType, setMeasurementType] = useState<MeasurementType>(
-    isLiquid ? 'volume' : 'weight'
+  // Initialize with existing entry values
+  const initialUnit = getInitialUnit();
+  const [servingAmount, setServingAmount] = useState(
+    entry.foodItem.servingSize?.toString() || '100'
   );
-  const [numberOfServings, setNumberOfServings] = useState('1');
+  const [servingUnit, setServingUnit] = useState<MeasurementUnit>(initialUnit);
+  const [measurementType, setMeasurementType] = useState<MeasurementType>(
+    initialUnit === 'ml' || initialUnit === 'fl oz' ? 'volume' : 'weight'
+  );
+  const [numberOfServings, setNumberOfServings] = useState(entry.servings.toString());
+  const [mealType, setMealType] = useState<MealType>(entry.mealType);
+  const [notes, setNotes] = useState(entry.notes || '');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Convert any unit to grams/ml equivalent for nutrition calculation
-  // Nutrition data is per 100g, and for liquids we approximate 1ml ≈ 1g
+  const mealTypes: { value: MealType; label: string; icon: string }[] = [
+    { value: 'breakfast', label: 'Breakfast', icon: 'sunny-outline' },
+    { value: 'lunch', label: 'Lunch', icon: 'restaurant-outline' },
+    { value: 'dinner', label: 'Dinner', icon: 'moon-outline' },
+    { value: 'snack', label: 'Snack', icon: 'nutrition-outline' },
+  ];
+
+  // Get the base nutrition per 100g from the original food item
+  // We need to reverse calculate if nutrition was already scaled
+  const getBaseNutritionPer100g = () => {
+    // Check if the original entry had scaled nutrition
+    const originalServingGrams = entry.foodItem.servingUnit === 'oz' 
+      ? entry.foodItem.servingSize * OZ_TO_GRAMS 
+      : entry.foodItem.servingSize;
+    const wasScaled = entry.servings === 1 && originalServingGrams !== 100;
+    
+    if (wasScaled && originalServingGrams > 0) {
+      // Reverse the scaling to get per 100g values
+      const reverseScale = 100 / originalServingGrams;
+      return {
+        calories: entry.foodItem.nutrition.calories * reverseScale,
+        protein: entry.foodItem.nutrition.protein * reverseScale,
+        carbohydrates: entry.foodItem.nutrition.carbohydrates * reverseScale,
+        fat: entry.foodItem.nutrition.fat * reverseScale,
+        fiber: entry.foodItem.nutrition.fiber ? entry.foodItem.nutrition.fiber * reverseScale : undefined,
+        sugar: entry.foodItem.nutrition.sugar ? entry.foodItem.nutrition.sugar * reverseScale : undefined,
+        sodium: entry.foodItem.nutrition.sodium ? entry.foodItem.nutrition.sodium * reverseScale : undefined,
+      };
+    }
+    
+    return entry.foodItem.nutrition;
+  };
+
+  const baseNutrition = getBaseNutritionPer100g();
+
+  // Calculate nutrition based on serving size
   const getServingInGrams = (): number => {
     const amount = parseFloat(servingAmount) || 0;
     switch (servingUnit) {
@@ -68,21 +104,19 @@ const FoodDetailScreen: React.FC<HomeStackScreenProps<'FoodDetail'>> = ({ naviga
     }
   };
 
-  // Calculate nutrition based on serving size
-  // API data is per 100g, so we scale accordingly
   const servingGrams = getServingInGrams();
   const scaleFactor = servingGrams / 100;
   const servingsCount = parseFloat(numberOfServings) || 1;
   
   // Nutrition per single serving
   const nutritionPerServing = {
-    calories: Math.round(foodItem.nutrition.calories * scaleFactor),
-    protein: Math.round(foodItem.nutrition.protein * scaleFactor * 10) / 10,
-    carbohydrates: Math.round(foodItem.nutrition.carbohydrates * scaleFactor * 10) / 10,
-    fat: Math.round(foodItem.nutrition.fat * scaleFactor * 10) / 10,
-    fiber: foodItem.nutrition.fiber ? Math.round(foodItem.nutrition.fiber * scaleFactor * 10) / 10 : undefined,
-    sugar: foodItem.nutrition.sugar ? Math.round(foodItem.nutrition.sugar * scaleFactor * 10) / 10 : undefined,
-    sodium: foodItem.nutrition.sodium ? Math.round(foodItem.nutrition.sodium * scaleFactor) : undefined,
+    calories: Math.round(baseNutrition.calories * scaleFactor),
+    protein: Math.round(baseNutrition.protein * scaleFactor * 10) / 10,
+    carbohydrates: Math.round(baseNutrition.carbohydrates * scaleFactor * 10) / 10,
+    fat: Math.round(baseNutrition.fat * scaleFactor * 10) / 10,
+    fiber: baseNutrition.fiber ? Math.round(baseNutrition.fiber * scaleFactor * 10) / 10 : undefined,
+    sugar: baseNutrition.sugar ? Math.round(baseNutrition.sugar * scaleFactor * 10) / 10 : undefined,
+    sodium: baseNutrition.sodium ? Math.round(baseNutrition.sodium * scaleFactor) : undefined,
   };
   
   // Total nutrition (per serving × number of servings)
@@ -96,7 +130,7 @@ const FoodDetailScreen: React.FC<HomeStackScreenProps<'FoodDetail'>> = ({ naviga
     sodium: nutritionPerServing.sodium ? Math.round(nutritionPerServing.sodium * servingsCount) : undefined,
   };
 
-  const handleAddFood = async () => {
+  const handleSave = async () => {
     const amount = parseFloat(servingAmount) || 0;
     const servings = parseFloat(numberOfServings) || 0;
     if (amount <= 0) {
@@ -110,29 +144,57 @@ const FoodDetailScreen: React.FC<HomeStackScreenProps<'FoodDetail'>> = ({ naviga
 
     setIsLoading(true);
     try {
-      // Create modified food item with user's serving size
       // Store fl oz as ml internally for consistency
       const storageUnit: ServingUnit = servingUnit === 'fl oz' ? 'ml' : servingUnit as ServingUnit;
       const storageAmount = servingUnit === 'fl oz' 
         ? amount * FL_OZ_TO_ML 
         : amount;
       
-      const modifiedFoodItem = {
-        ...foodItem,
+      const updatedFoodItem = {
+        ...entry.foodItem,
         servingSize: storageAmount,
         servingUnit: storageUnit,
-        // Store nutrition per serving (not per 100g)
         nutrition: nutritionPerServing,
       };
       
-      // Add with the user-specified number of servings
-      await addEntry(modifiedFoodItem, servings, mealType, date);
-      navigation.navigate('Home');
+      await updateEntry(
+        entry.id,
+        {
+          foodItem: updatedFoodItem,
+          servings,
+          mealType,
+          notes: notes || undefined,
+        },
+        date
+      );
+      navigation.goBack();
     } catch (error: any) {
       Alert.alert('Error', error.message);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Entry',
+      `Are you sure you want to delete ${entry.foodItem.name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteEntry(entry.id, date);
+              navigation.goBack();
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getQuickServings = (): string[] => {
@@ -155,18 +217,43 @@ const FoodDetailScreen: React.FC<HomeStackScreenProps<'FoodDetail'>> = ({ naviga
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.foodName}>{foodItem.name}</Text>
-          {foodItem.brand && (
-            <Text style={styles.brandName}>{foodItem.brand}</Text>
-          )}
-          {foodItem.isCustom && (
-            <View style={styles.customBadge}>
-              <Text style={styles.customBadgeText}>Custom</Text>
-            </View>
+          <Text style={styles.foodName}>{entry.foodItem.name}</Text>
+          {entry.foodItem.brand && (
+            <Text style={styles.brandName}>{entry.foodItem.brand}</Text>
           )}
         </View>
 
-        <View style={styles.servingSection}>
+        {/* Meal Type Selector */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Meal</Text>
+          <View style={styles.mealTypeRow}>
+            {mealTypes.map((meal) => (
+              <TouchableOpacity
+                key={meal.value}
+                style={[
+                  styles.mealTypeButton,
+                  mealType === meal.value && styles.mealTypeButtonActive
+                ]}
+                onPress={() => setMealType(meal.value)}
+              >
+                <Icon 
+                  name={meal.icon} 
+                  size={20} 
+                  color={mealType === meal.value ? colors.white : colors.textSecondary} 
+                />
+                <Text style={[
+                  styles.mealTypeText,
+                  mealType === meal.value && styles.mealTypeTextActive
+                ]}>
+                  {meal.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Serving Size Section */}
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Serving Size</Text>
           
           {/* Measurement Type Toggle (Weight vs Volume) */}
@@ -305,14 +392,10 @@ const FoodDetailScreen: React.FC<HomeStackScreenProps<'FoodDetail'>> = ({ naviga
               ))}
             </View>
           </View>
-          
-          <Text style={styles.nutritionNote}>
-            Nutrition per serving: {servingAmount}{servingUnit}
-          </Text>
         </View>
 
         {/* Number of Servings Section */}
-        <View style={styles.servingSection}>
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Number of Servings</Text>
           <View style={styles.servingsCountCard}>
             <TouchableOpacity
@@ -370,6 +453,7 @@ const FoodDetailScreen: React.FC<HomeStackScreenProps<'FoodDetail'>> = ({ naviga
           </View>
         </View>
 
+        {/* Calories Highlight */}
         <View style={styles.calorieHighlight}>
           <Text style={styles.calorieValue}>{scaledNutrition.calories}</Text>
           <Text style={styles.calorieLabel}>
@@ -377,19 +461,44 @@ const FoodDetailScreen: React.FC<HomeStackScreenProps<'FoodDetail'>> = ({ naviga
           </Text>
         </View>
 
+        {/* Nutrition Label */}
         <NutritionLabel nutrition={scaledNutrition} />
+
+        {/* Notes Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notes (optional)</Text>
+          <TextInput
+            style={styles.notesInput}
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Add notes about this food..."
+            placeholderTextColor={colors.textSecondary}
+            multiline
+            numberOfLines={3}
+          />
+        </View>
+
+        {/* Delete Button */}
+        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+          <Icon name="trash-outline" size={20} color={colors.error} />
+          <Text style={styles.deleteButtonText}>Delete Entry</Text>
+        </TouchableOpacity>
       </ScrollView>
 
+      {/* Footer */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.addButton, isLoading && styles.addButtonDisabled]}
-          onPress={handleAddFood}
+          style={styles.cancelButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+          onPress={handleSave}
           disabled={isLoading}
         >
-          <Icon name="add-circle-outline" size={24} color={colors.white} />
-          <Text style={styles.addButtonText}>
-            Add to {mealType.charAt(0).toUpperCase() + mealType.slice(1)}
-          </Text>
+          <Text style={styles.saveButtonText}>Save Changes</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -418,20 +527,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
-  customBadge: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginTop: spacing.sm,
-  },
-  customBadgeText: {
-    fontSize: typography.sizes.sm,
-    color: colors.primary,
-    fontWeight: typography.weights.medium as any,
-  },
-  servingSection: {
+  section: {
     marginBottom: spacing.lg,
   },
   sectionTitle: {
@@ -439,6 +535,33 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.semibold as any,
     color: colors.textSecondary,
     marginBottom: spacing.sm,
+  },
+  mealTypeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  mealTypeButton: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  mealTypeButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  mealTypeText: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  mealTypeTextActive: {
+    color: colors.white,
   },
   measurementTypeToggle: {
     flexDirection: 'row',
@@ -577,13 +700,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.md,
   },
-  nutritionNote: {
-    fontSize: typography.sizes.sm,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: spacing.md,
-    fontStyle: 'italic',
-  },
   calorieHighlight: {
     backgroundColor: colors.primary,
     borderRadius: 16,
@@ -601,30 +717,67 @@ const styles = StyleSheet.create({
     color: colors.white,
     opacity: 0.9,
   },
+  notesInput: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: spacing.md,
+    fontSize: typography.sizes.md,
+    color: colors.text,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.xl,
+    gap: spacing.sm,
+  },
+  deleteButtonText: {
+    color: colors.error,
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.medium as any,
+  },
   footer: {
+    flexDirection: 'row',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    gap: spacing.md,
   },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
+  cancelButton: {
+    flex: 1,
     paddingVertical: spacing.md,
     borderRadius: 12,
-    gap: spacing.sm,
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  addButtonDisabled: {
+  cancelButtonText: {
+    color: colors.text,
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.semibold as any,
+  },
+  saveButton: {
+    flex: 2,
+    paddingVertical: spacing.md,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+  },
+  saveButtonDisabled: {
     opacity: 0.7,
   },
-  addButtonText: {
+  saveButtonText: {
     color: colors.white,
     fontSize: typography.sizes.lg,
     fontWeight: typography.weights.semibold as any,
   },
 });
 
-export default FoodDetailScreen;
+export default EditEntryScreen;

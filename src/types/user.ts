@@ -11,6 +11,23 @@ export interface User {
 
 export type UnitSystem = 'metric' | 'imperial';
 
+// Supported languages for food search (Open Food Facts language codes)
+export type FoodSearchLanguage = 
+  | 'en' // English
+  | 'es' // Spanish
+  | 'fr' // French
+  | 'de' // German
+  | 'it' // Italian
+  | 'pt' // Portuguese
+  | 'nl' // Dutch
+  | 'pl' // Polish
+  | 'ru' // Russian
+  | 'ja' // Japanese
+  | 'zh' // Chinese
+  | 'ko' // Korean
+  | 'ar' // Arabic
+  | 'all'; // All languages (no filter)
+
 export interface UserProfile {
   age?: number;
   weight?: number; // stored in kg
@@ -23,6 +40,7 @@ export interface UserProfile {
   dailyCarbsGoal?: number; // in grams
   dailyFatGoal?: number; // in grams
   unitSystem?: UnitSystem; // user's preferred display units
+  preferredLanguage?: FoodSearchLanguage; // language filter for food search results
 }
 
 export type ActivityLevel = 
