@@ -9,10 +9,12 @@ export interface User {
   profile: UserProfile;
 }
 
+export type UnitSystem = 'metric' | 'imperial';
+
 export interface UserProfile {
   age?: number;
-  weight?: number; // in kg
-  height?: number; // in cm
+  weight?: number; // stored in kg
+  height?: number; // stored in cm
   gender?: 'male' | 'female' | 'other';
   activityLevel?: ActivityLevel;
   goalType?: GoalType;
@@ -20,6 +22,7 @@ export interface UserProfile {
   dailyProteinGoal?: number; // in grams
   dailyCarbsGoal?: number; // in grams
   dailyFatGoal?: number; // in grams
+  unitSystem?: UnitSystem; // user's preferred display units
 }
 
 export type ActivityLevel = 

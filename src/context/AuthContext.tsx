@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, UserProfile, AuthState } from '@/types';
 import { authService } from '@/services/firebase';
 
@@ -7,7 +8,10 @@ interface AuthContextType extends AuthState {
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (profile: Partial<UserProfile>) => Promise<void>;
+  createLocalUser: (displayName?: string) => Promise<void>;
 }
+
+const STORAGE_KEY = '@cico_current_user';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -104,17 +108,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       await authService.updateUserProfile(state.user.id, profile);
+      const updatedUser = {
+        ...state.user,
+        profile: { ...state.user.profile, ...profile },
+      };
       setState(prev => ({
         ...prev,
-        user: prev.user ? {
-          ...prev.user,
-          profile: { ...prev.user.profile, ...profile },
-        } : null,
+        user: updatedUser,
       }));
     } catch (error: any) {
       throw error;
     }
   }, [state.user]);
+
+  // Create a local user without requiring email/password
+  // Used for "Start Fresh" flow and after importing data
+  const createLocalUser = useCallback(async (displayName?: string) => {
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    try {
+      // Check if there's already user data from an import
+      const existingUserJson = await AsyncStorage.getItem(STORAGE_KEY);
+      
+      if (existingUserJson) {
+        // User data exists (from import), just load it
+        const existingUser = JSON.parse(existingUserJson);
+        setState({
+          user: existingUser,
+          isLoading: false,
+          isAuthenticated: true,
+          error: null,
+        });
+        return;
+      }
+      
+      // Create a new local user
+      const defaultProfile: UserProfile = {
+        dailyCalorieGoal: 2000,
+        dailyProteinGoal: 50,
+        dailyCarbsGoal: 250,
+        dailyFatGoal: 65,
+      };
+
+      const user: User = {
+        id: `local_user_${Date.now()}`,
+        email: '',
+        displayName: displayName || 'User',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        profile: defaultProfile,
+      };
+
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+      
+      setState({
+        user,
+        isLoading: false,
+        isAuthenticated: true,
+        error: null,
+      });
+    } catch (error: any) {
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error.message,
+      }));
+      throw error;
+    }
+  }, []);
 
   return (
     <AuthContext.Provider
@@ -124,6 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUp,
         signOut,
         updateProfile,
+        createLocalUser,
       }}
     >
       {children}

@@ -1,10 +1,50 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/Ionicons';
 import { AuthStackScreenProps } from '@/types';
+import { useAuth } from '@/context/AuthContext';
+import { dataExportService } from '@/services/dataExport';
 import { colors, spacing, typography } from '@/constants/theme';
 
 const WelcomeScreen: React.FC<AuthStackScreenProps<'Welcome'>> = ({ navigation }) => {
+  const { createLocalUser } = useAuth();
+  const [isImporting, setIsImporting] = useState(false);
+
+  const handleStartFresh = () => {
+    // Navigate to onboarding to set up profile
+    navigation.navigate('Onboarding');
+  };
+
+  const handleImportData = async () => {
+    setIsImporting(true);
+    try {
+      const result = await dataExportService.importData();
+      
+      if (result.success) {
+        Alert.alert(
+          'Welcome Back! 🎉',
+          result.message,
+          [
+            {
+              text: 'Continue',
+              onPress: async () => {
+                // Create local user session from imported data
+                await createLocalUser();
+              },
+            },
+          ]
+        );
+      } else if (result.message !== 'Import cancelled') {
+        Alert.alert('Import Failed', result.message);
+      }
+    } catch (error: any) {
+      Alert.alert('Import Failed', error.message || 'An error occurred while importing your data.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -18,24 +58,44 @@ const WelcomeScreen: React.FC<AuthStackScreenProps<'Welcome'>> = ({ navigation }
           <FeatureItem emoji="📊" text="Track your daily calories" />
           <FeatureItem emoji="🎯" text="Set personalized goals" />
           <FeatureItem emoji="📈" text="Monitor your progress" />
-          <FeatureItem emoji="🍽️" text="Log meals easily" />
+          <FeatureItem emoji="🔒" text="Your data stays on your device" />
+        </View>
+
+        <View style={styles.privacyNote}>
+          <Icon name="shield-checkmark-outline" size={20} color={colors.success} />
+          <Text style={styles.privacyText}>
+            No account needed. No cloud storage. Your data is private and stays on your device.
+          </Text>
         </View>
       </View>
 
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => navigation.navigate('Register')}
+          onPress={handleStartFresh}
         >
-          <Text style={styles.primaryButtonText}>Get Started</Text>
+          <Icon name="add-circle-outline" size={22} color={colors.white} />
+          <Text style={styles.primaryButtonText}>Start Fresh</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.secondaryButton}
-          onPress={() => navigation.navigate('Login')}
+          onPress={handleImportData}
+          disabled={isImporting}
         >
-          <Text style={styles.secondaryButtonText}>I already have an account</Text>
+          {isImporting ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <>
+              <Icon name="cloud-download-outline" size={22} color={colors.primary} />
+              <Text style={styles.secondaryButtonText}>I have existing data</Text>
+            </>
+          )}
         </TouchableOpacity>
+
+        <Text style={styles.helperText}>
+          If you've used CICO before, import your backup file to restore your data
+        </Text>
       </View>
     </SafeAreaView>
   );
@@ -93,6 +153,21 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.md,
     color: colors.text,
   },
+  privacyNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.primaryLight,
+    padding: spacing.md,
+    borderRadius: 12,
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  privacyText: {
+    flex: 1,
+    fontSize: typography.sizes.sm,
+    color: colors.text,
+    lineHeight: 20,
+  },
   buttonContainer: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xl,
@@ -103,6 +178,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm,
   },
   primaryButtonText: {
     color: colors.white,
@@ -111,12 +189,25 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     paddingVertical: spacing.md,
+    borderRadius: 12,
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm,
   },
   secondaryButtonText: {
     color: colors.primary,
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.medium as any,
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.semibold as any,
+  },
+  helperText: {
+    textAlign: 'center',
+    color: colors.textSecondary,
+    fontSize: typography.sizes.sm,
+    marginTop: spacing.md,
+    lineHeight: 20,
   },
 });
 

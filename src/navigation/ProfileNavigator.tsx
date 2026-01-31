@@ -5,6 +5,7 @@ import ProfileScreen from '@/screens/profile/ProfileScreen';
 import EditProfileScreen from '@/screens/profile/EditProfileScreen';
 import GoalsScreen from '@/screens/profile/GoalsScreen';
 import SettingsScreen from '@/screens/profile/SettingsScreen';
+import DataExportScreen from '@/screens/profile/DataExportScreen';
 import AboutScreen from '@/screens/profile/AboutScreen';
 import { colors } from '@/constants/theme';
 
@@ -43,6 +44,11 @@ const ProfileNavigator: React.FC = () => {
         name="Settings"
         component={SettingsScreen}
         options={{ title: 'Settings' }}
+      />
+      <Stack.Screen
+        name="DataExport"
+        component={DataExportScreen}
+        options={{ title: 'Data Export' }}
       />
       <Stack.Screen
         name="About"

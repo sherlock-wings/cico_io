@@ -41,6 +41,12 @@ const ProfileScreen: React.FC<ProfileStackScreenProps<'Profile'>> = ({ navigatio
       onPress: () => navigation.navigate('Goals'),
     },
     {
+      icon: 'cloud-upload-outline',
+      title: 'Data Export',
+      subtitle: 'Backup or restore your data',
+      onPress: () => navigation.navigate('DataExport'),
+    },
+    {
       icon: 'settings-outline',
       title: 'Settings',
       subtitle: 'App preferences and notifications',
